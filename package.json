@@ -29,6 +29,7 @@
         "@types/aws-lambda": "^8.10.152",
         "@types/jest": "^29.5.12",
         "@types/node": "20.14.9",
+        "@types/pg": "^8.15.4",
         "@typescript-eslint/eslint-plugin": "^7.16.0",
         "@typescript-eslint/parser": "^7.16.0",
         "aws-cdk": "^2.176.0",
@@ -47,6 +48,8 @@
     },
     "dependencies": {
         "aws-cdk-lib": "2.173.4",
-        "constructs": "^10.0.0"
+        "constructs": "^10.0.0",
+        "openai": "^5.10.2",
+        "pg": "^8.16.3"
     }
 }
