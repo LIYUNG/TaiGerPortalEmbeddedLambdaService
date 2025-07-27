@@ -1,5 +1,6 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
 import { ApiResponse } from "./apiResponse";
+import { handler as leadStudentMatchingHandler } from "./controllers/lead-student-matching";
 
 export const routes: Record<
     string,
@@ -18,9 +19,5 @@ export const routes: Record<
         return ApiResponse.ok({ time: new Date().toISOString() });
     },
 
-    "/lead-student-matching": async () => {
-        return ApiResponse.ok({
-            message: "Lead-Student Matching endpoint is not implemented yet"
-        });
-    }
+    "/lead-student-matching": leadStudentMatchingHandler
 };
