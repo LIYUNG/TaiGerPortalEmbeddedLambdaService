@@ -1,25 +1,22 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
+import { routes } from "./routes";
+import { ApiResponse } from "./apiResponse";
 
 export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
-
     try {
-        console.log("Received event:", JSON.stringify(event, null, 2));
-        const path =  event.path;
+        console.log("Processing API request:", JSON.stringify(event, null, 2));
 
-        const handler = require(`./controllers/${path}`);
-        if (typeof handler.handler !== 'function') {
-            
+        const path = event.path;
+
+        const routeHandler = routes[path as keyof typeof routes];
+        if (!routeHandler) {
+            return ApiResponse.notFound("Endpoint not found");
         }
-    } catch (error) {
-        console.error("Error occurred:", error);
-    } finally {
-        console.log("Lambda handler execution completed.");
+
+        return await routeHandler(event);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } catch (error: any) {
+        console.error("Unexpected error:", error);
+        return ApiResponse.internalServerError("An unexpected error occurred");
     }
-
-
-
-    return {
-        statusCode: 200,
-        body: JSON.stringify({ message: "Hello, World! " + process.env.ENV_VARIABLE })
-    };
 };
