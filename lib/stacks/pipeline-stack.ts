@@ -1,4 +1,5 @@
 import * as cdk from "aws-cdk-lib";
+import { SecretValue } from "aws-cdk-lib";
 import { PolicyStatement } from "aws-cdk-lib/aws-iam";
 import {
     CodePipeline,
@@ -6,6 +7,7 @@ import {
     ManualApprovalStep,
     ShellStep
 } from "aws-cdk-lib/pipelines";
+import * as codepipeline_actions from "aws-cdk-lib/aws-codepipeline-actions";
 import { Construct } from "constructs";
 
 import {
@@ -13,7 +15,7 @@ import {
     GITHUB_OWNER,
     GITHUB_PACKAGE_BRANCH,
     GITHUB_REPO,
-    GITHUB_CONNECTION_ARN
+    GITHUB_TOKEN
 } from "../configuration/dependencies";
 import { PipelineAppStage } from "./app-stage";
 import { STAGES } from "../constants";
@@ -23,12 +25,12 @@ export class PipelineStack extends cdk.Stack {
         super(scope, id, props);
 
         // Define the source for the pipeline
-        const source = CodePipelineSource.connection(
+        const source = CodePipelineSource.gitHub(
             `${GITHUB_OWNER}/${GITHUB_REPO}`,
             GITHUB_PACKAGE_BRANCH,
             {
-                connectionArn: GITHUB_CONNECTION_ARN,
-                triggerOnPush: true // Enables automatic builds on push
+                authentication: SecretValue.secretsManager(GITHUB_TOKEN),
+                trigger: codepipeline_actions.GitHubTrigger.WEBHOOK
             }
         );
 

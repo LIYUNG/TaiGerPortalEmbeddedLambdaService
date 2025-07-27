@@ -14,7 +14,7 @@ export const STAGES = [
     },
     {
         stageName: Stage.PROD,
-        env: { region: Region.AP_NORTHEAST_1, account: AWS_ACCOUNT },
+        env: { region: Region.US_WEST_2, account: AWS_ACCOUNT },
         isProd: true
     }
 ];

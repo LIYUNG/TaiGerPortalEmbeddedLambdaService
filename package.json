@@ -1,8 +1,8 @@
 {
-    "name": "example_lambda_cdk",
+    "name": "taiger-portal-embedded-lambda-service",
     "version": "0.1.0",
     "bin": {
-        "example_lambda_cdk": "bin/example_lambda_cdk.js"
+        "taiger-portal-embedded-lambda-service": "bin/taiger-portal-embedded-lambda-service.js"
     },
     "scripts": {
         "clean": "rm -rf build dist cdk.out node_modules",
@@ -26,11 +26,14 @@
         ]
     },
     "devDependencies": {
+        "@types/aws-lambda": "^8.10.152",
         "@types/jest": "^29.5.12",
         "@types/node": "20.14.9",
         "@typescript-eslint/eslint-plugin": "^7.16.0",
         "@typescript-eslint/parser": "^7.16.0",
         "aws-cdk": "^2.176.0",
+        "aws-lambda": "^1.0.7",
+        "esbuild": "^0.25.8",
         "eslint": "^8.57.0",
         "eslint-config-prettier": "^9.1.0",
         "eslint-plugin-prettier": "^5.1.3",

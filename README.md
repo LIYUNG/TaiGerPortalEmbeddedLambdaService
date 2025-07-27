@@ -11,7 +11,7 @@ ExampleAWSCDK/
 ├── .husky/
 │   ├── pre-commit    // build, testing, prettier before commit
 ├── bin/
-│   ├── example_lambda_cdk.ts
+│   ├── taiger-portal-embedded-lambda-service.ts
 ├── lib/
 │   ├── configuration/
 │   │   ├── dependencies.ts   // project specific config

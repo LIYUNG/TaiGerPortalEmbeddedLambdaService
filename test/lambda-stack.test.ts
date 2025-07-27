@@ -16,8 +16,8 @@ test("Lambda Stack Created", () => {
 
     // Check if Lambda Function exists
     template.hasResourceProperties("AWS::Lambda::Function", {
-        Runtime: "python3.12", // Adjust if needed
-        Handler: "index.lambda_handler" // Ensure this matches your Lambda handler
+        Runtime: "nodejs20.x", // Adjust if needed
+        Handler: "index.handler" // Ensure this matches your Lambda handler
     });
 
     // Check if API Gateway exists
