@@ -73,9 +73,11 @@ export class LambdaStack extends cdk.Stack {
             authorizationType: AuthorizationType.IAM // Require SigV4 signed requests
         };
 
-        // Create a resource and method in API Gateway
-        const lambdaHelloWorld = api.root.addResource("hello");
-        lambdaHelloWorld.addMethod("GET", lambdaIntegration, methodOptions);
+        // Create a proxy resource that catches all paths
+        api.root.addProxy({
+            defaultIntegration: lambdaIntegration,
+            defaultMethodOptions: methodOptions
+        });
 
         // Cost center tag
         cdk.Tags.of(lambdaFunction).add("Project", "TaiGerPortalEmbeddedLambdaService");
