@@ -74,7 +74,7 @@ try {
 
 // PostgreSQL connection configuration
 const dbConfig: DbConfig = {
-    connectionString: process.env.DATABASE_URL!,
+    connectionString: process.env.POSTGRES_URI!,
     ssl: process.env.POSTGRES_URI === "true" ? { rejectUnauthorized: false } : false,
     // Add connection timeout and other options
     connectionTimeoutMillis: 10000,
