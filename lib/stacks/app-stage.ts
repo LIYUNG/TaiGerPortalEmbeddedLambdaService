@@ -5,6 +5,7 @@ import { APPLICATION_NAME } from "../configuration";
 
 interface DeploymentkProps extends StageProps {
     stageName: string;
+    secretArn: string;
     isProd: boolean;
 }
 
@@ -17,7 +18,10 @@ export class PipelineAppStage extends Stage {
             this,
             `${APPLICATION_NAME}LambdaStack-${props.stageName}`,
             {
-                ...props
+                ...props,
+                stageName: props.stageName,
+                secretArn: props.secretArn,
+                isProd: props.isProd
             }
         );
     }

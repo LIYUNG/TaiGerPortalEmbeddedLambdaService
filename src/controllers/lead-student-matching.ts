@@ -35,11 +35,7 @@ interface AIEvaluationResult {
 }
 
 interface DbConfig {
-    host: string;
-    port: number;
-    database: string;
-    user: string;
-    password: string;
+    connectionString?: string;
     ssl: boolean | { rejectUnauthorized: boolean };
     connectionTimeoutMillis: number;
     idleTimeoutMillis: number;
@@ -56,13 +52,7 @@ interface LogContext {
 }
 
 // Validate required environment variables
-const requiredEnvVars: string[] = [
-    "OPENAI_API_KEY",
-    "DB_HOST",
-    "DB_NAME",
-    "DB_USER",
-    "DB_PASSWORD"
-];
+const requiredEnvVars: string[] = ["OPENAI_API_KEY", "POSTGRES_URI"];
 
 const missingVars = requiredEnvVars.filter((varName) => !process.env[varName]);
 if (missingVars.length > 0) {
@@ -84,12 +74,8 @@ try {
 
 // PostgreSQL connection configuration
 const dbConfig: DbConfig = {
-    host: process.env.DB_HOST!,
-    port: parseInt(process.env.DB_PORT!) || 5432,
-    database: process.env.DB_NAME!,
-    user: process.env.DB_USER!,
-    password: process.env.DB_PASSWORD!,
-    ssl: process.env.DB_SSL === "true" ? { rejectUnauthorized: false } : false,
+    connectionString: process.env.DATABASE_URL!,
+    ssl: process.env.POSTGRES_URI === "true" ? { rejectUnauthorized: false } : false,
     // Add connection timeout and other options
     connectionTimeoutMillis: 10000,
     idleTimeoutMillis: 30000

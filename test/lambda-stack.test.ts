@@ -6,10 +6,12 @@ import { APPLICATION_NAME } from "../lib/configuration";
 test("Lambda Stack Created", () => {
     const app = new cdk.App();
     const stageName = "test";
+    const secretArn = "arn:aws:secretsmanager:us-east-1:123456789012:secret:my-secret";
     // WHEN
     const lambdaStack = new LambdaStack(app, "LambdaStack", {
         stageName: stageName,
-        isProd: false
+        isProd: false,
+        secretArn: secretArn
     });
     // THEN
     const template = Template.fromStack(lambdaStack);

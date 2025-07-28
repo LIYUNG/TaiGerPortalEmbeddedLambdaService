@@ -8,17 +8,24 @@ import {
     MethodOptions,
     RestApi
 } from "aws-cdk-lib/aws-apigateway";
-
+import { aws_secretsmanager } from "aws-cdk-lib";
 import { APPLICATION_NAME } from "../configuration";
 
 interface LambdaStackProps extends cdk.StackProps {
     stageName: string;
+    secretArn: string;
     isProd: boolean;
 }
 
 export class LambdaStack extends cdk.Stack {
     constructor(scope: Construct, id: string, props: LambdaStackProps) {
         super(scope, id, props);
+
+        const secret = aws_secretsmanager.Secret.fromSecretCompleteArn(
+            this,
+            `${APPLICATION_NAME}-Secret-${props.stageName}`,
+            props.secretArn
+        );
 
         const lambdaFunction = new NodejsFunction(
             this,
@@ -38,10 +45,14 @@ export class LambdaStack extends cdk.Stack {
                 memorySize: 128,
                 timeout: cdk.Duration.seconds(300),
                 environment: {
-                    ENV_VARIABLE: props.stageName
+                    ENV_VARIABLE: props.stageName,
+                    POSTGRES_URI: secret.secretValueFromJson("POSTGRES_URI").unsafeUnwrap(),
+                    OPENAI_API_KEY: secret.secretValueFromJson("OPENAI_API_KEY").unsafeUnwrap()
                 }
             }
         );
+
+        secret.grantRead(lambdaFunction);
 
         // Step 2: Create API Gateway
         const api = new RestApi(this, `${APPLICATION_NAME}-APIG-${props.stageName}`, {
