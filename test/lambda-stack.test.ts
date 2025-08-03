@@ -11,7 +11,11 @@ test("Lambda Stack Created", () => {
     const lambdaStack = new LambdaStack(app, "LambdaStack", {
         stageName: stageName,
         isProd: false,
-        secretArn: secretArn
+        secretArn: secretArn,
+        env: {
+            account: "123456789313",
+            region: "us-east-1"
+        }
     });
     // THEN
     const template = Template.fromStack(lambdaStack);

@@ -4,12 +4,17 @@ import { Runtime } from "aws-cdk-lib/aws-lambda";
 import { NodejsFunction } from "aws-cdk-lib/aws-lambda-nodejs";
 import {
     AuthorizationType,
+    BasePathMapping,
     LambdaIntegration,
-    MethodOptions,
-    RestApi
+    RestApi,
+    DomainName
 } from "aws-cdk-lib/aws-apigateway";
-import { aws_secretsmanager } from "aws-cdk-lib";
-import { APPLICATION_NAME } from "../configuration";
+import { Certificate, CertificateValidation } from "aws-cdk-lib/aws-certificatemanager";
+import { ARecord, HostedZone, RecordTarget } from "aws-cdk-lib/aws-route53";
+import { ApiGatewayDomain } from "aws-cdk-lib/aws-route53-targets";
+import { Secret } from "aws-cdk-lib/aws-secretsmanager";
+
+import { APPLICATION_NAME, DOMAIN_NAME } from "../configuration";
 
 interface LambdaStackProps extends cdk.StackProps {
     stageName: string;
@@ -18,10 +23,11 @@ interface LambdaStackProps extends cdk.StackProps {
 }
 
 export class LambdaStack extends cdk.Stack {
+    public readonly api: RestApi;
     constructor(scope: Construct, id: string, props: LambdaStackProps) {
         super(scope, id, props);
 
-        const secret = aws_secretsmanager.Secret.fromSecretCompleteArn(
+        const secret = Secret.fromSecretCompleteArn(
             this,
             `${APPLICATION_NAME}-Secret-${props.stageName}`,
             props.secretArn
@@ -55,7 +61,7 @@ export class LambdaStack extends cdk.Stack {
         secret.grantRead(lambdaFunction);
 
         // Step 2: Create API Gateway
-        const api = new RestApi(this, `${APPLICATION_NAME}-APIG-${props.stageName}`, {
+        this.api = new RestApi(this, `${APPLICATION_NAME}-APIG-${props.stageName}`, {
             restApiName: `${APPLICATION_NAME}-${props.stageName}`,
             description: "This service handles requests with Lambda.",
             deployOptions: {
@@ -68,20 +74,60 @@ export class LambdaStack extends cdk.Stack {
             proxy: true // Proxy all requests to the Lambda
         });
 
-        // Define IAM authorization for the API Gateway method
-        const methodOptions: MethodOptions = {
-            authorizationType: AuthorizationType.IAM // Require SigV4 signed requests
-        };
+        // Create a resource and method in API Gateway
+        const lambdaProxy = this.api.root.addResource("{proxy+}");
+        lambdaProxy.addMethod("ANY", lambdaIntegration, {
+            authorizationType: AuthorizationType.IAM,
+            requestParameters: {
+                "method.request.path.proxy": true // Enable path parameter
+            }
+        });
 
-        // Create a proxy resource that catches all paths
-        api.root.addProxy({
-            defaultIntegration: lambdaIntegration,
-            defaultMethodOptions: methodOptions
+        // Look up the existing hosted zone for your domain
+        const hostedZone = HostedZone.fromLookup(
+            this,
+            `${APPLICATION_NAME}-HostedZone-${props.stageName}`,
+            {
+                domainName: DOMAIN_NAME // Your domain name
+            }
+        );
+
+        const apiDomain = `api.crm.${props.stageName}.${DOMAIN_NAME}`;
+
+        const certificate = new Certificate(
+            this,
+            `${APPLICATION_NAME}-EcsEc2ApiCertificate-${props.stageName}`,
+            {
+                domainName: apiDomain,
+                validation: CertificateValidation.fromDns(hostedZone)
+            }
+        );
+
+        const domainName = new DomainName(
+            this,
+            `${APPLICATION_NAME}-EcsEc2CustomDomain-${props.stageName}`,
+            {
+                domainName: apiDomain,
+                certificate
+            }
+        );
+
+        new BasePathMapping(this, `${APPLICATION_NAME}-EcsEc2BasePathMapping-${props.stageName}`, {
+            domainName: domainName,
+            restApi: this.api,
+            stage: this.api.deploymentStage
+        });
+
+        // Step 6: Create Route 53 Record to point to the API Gateway
+        new ARecord(this, `${APPLICATION_NAME}-EcsEc2ApiGatewayRecord-${props.stageName}`, {
+            zone: hostedZone,
+            recordName: apiDomain, // Subdomain name for your custom domain
+            target: RecordTarget.fromAlias(new ApiGatewayDomain(domainName))
         });
 
         // Cost center tag
         cdk.Tags.of(lambdaFunction).add("Project", "TaiGerPortalEmbeddedLambdaService");
         cdk.Tags.of(lambdaFunction).add("Environment", props.stageName);
-        cdk.Tags.of(api).add("CostCenter", "LambdaService");
+        cdk.Tags.of(this.api).add("CostCenter", "LambdaService");
     }
 }
