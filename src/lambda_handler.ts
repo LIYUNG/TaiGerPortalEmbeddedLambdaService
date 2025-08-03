@@ -5,22 +5,6 @@ import { ApiResponse } from "./apiResponse";
 export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
     try {
         console.log("Processing API request:", JSON.stringify(event, null, 2));
-
-        // Handle preflight OPTIONS requests for CORS
-        if (event.httpMethod === "OPTIONS") {
-            return {
-                statusCode: 200,
-                headers: {
-                    "Access-Control-Allow-Origin": "*",
-                    "Access-Control-Allow-Credentials": "true",
-                    "Access-Control-Allow-Headers":
-                        "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token",
-                    "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS"
-                },
-                body: ""
-            };
-        }
-
         const path = event.path;
 
         const routeHandler = routes[path as keyof typeof routes];
