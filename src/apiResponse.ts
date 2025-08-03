@@ -2,6 +2,7 @@ import { APIGatewayProxyResult } from "aws-lambda";
 
 const corsHeaders = {
     "Access-Control-Allow-Origin": "*", // You can restrict this to specific domains
+    "Access-Control-Allow-Credentials": "true",
     "Access-Control-Allow-Headers":
         "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token",
     "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS",
