@@ -96,7 +96,7 @@ export class LambdaStack extends cdk.Stack {
 
         const certificate = new Certificate(
             this,
-            `${APPLICATION_NAME}-EcsEc2ApiCertificate-${props.stageName}`,
+            `${APPLICATION_NAME}-ApiCertificate-${props.stageName}`,
             {
                 domainName: apiDomain,
                 validation: CertificateValidation.fromDns(hostedZone)
@@ -105,21 +105,21 @@ export class LambdaStack extends cdk.Stack {
 
         const domainName = new DomainName(
             this,
-            `${APPLICATION_NAME}-EcsEc2CustomDomain-${props.stageName}`,
+            `${APPLICATION_NAME}-CustomDomain-${props.stageName}`,
             {
                 domainName: apiDomain,
                 certificate
             }
         );
 
-        new BasePathMapping(this, `${APPLICATION_NAME}-EcsEc2BasePathMapping-${props.stageName}`, {
+        new BasePathMapping(this, `${APPLICATION_NAME}-BasePathMapping-${props.stageName}`, {
             domainName: domainName,
             restApi: this.api,
             stage: this.api.deploymentStage
         });
 
         // Step 6: Create Route 53 Record to point to the API Gateway
-        new ARecord(this, `${APPLICATION_NAME}-EcsEc2ApiGatewayRecord-${props.stageName}`, {
+        new ARecord(this, `${APPLICATION_NAME}-ApiGatewayRecord-${props.stageName}`, {
             zone: hostedZone,
             recordName: apiDomain, // Subdomain name for your custom domain
             target: RecordTarget.fromAlias(new ApiGatewayDomain(domainName))
