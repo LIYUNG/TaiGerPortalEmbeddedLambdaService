@@ -7,7 +7,8 @@ import {
     BasePathMapping,
     LambdaIntegration,
     RestApi,
-    DomainName
+    DomainName,
+    EndpointType
 } from "aws-cdk-lib/aws-apigateway";
 import { Certificate, CertificateValidation } from "aws-cdk-lib/aws-certificatemanager";
 import { ARecord, HostedZone, RecordTarget } from "aws-cdk-lib/aws-route53";
@@ -63,10 +64,19 @@ export class LambdaStack extends cdk.Stack {
         // Step 2: Create API Gateway
         this.api = new RestApi(this, `${APPLICATION_NAME}-APIG-${props.stageName}`, {
             restApiName: `${APPLICATION_NAME}-${props.stageName}`,
+            defaultCorsPreflightOptions: {
+                allowOrigins: [
+                    "http://localhost:3006" // 本地開發
+                ],
+                allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+                allowHeaders: ["Authorization", "Content-Type", "X-auth"],
+                allowCredentials: true
+            },
             description: "This service handles requests with Lambda.",
             deployOptions: {
                 stageName: props.stageName // Your API stage
-            }
+            },
+            endpointConfiguration: { types: [EndpointType.REGIONAL] }
         });
 
         // Lambda integration
