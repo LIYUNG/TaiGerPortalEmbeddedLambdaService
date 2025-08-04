@@ -475,8 +475,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
             return {
                 statusCode: 400,
                 headers: {
-                    "Content-Type": "application/json",
-                    "Access-Control-Allow-Origin": "*"
+                    "Content-Type": "application/json"
                 },
                 body: JSON.stringify({
                     error: "Invalid or missing leadId parameter",
@@ -510,8 +509,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
             return {
                 statusCode: 200,
                 headers: {
-                    "Content-Type": "application/json",
-                    "Access-Control-Allow-Origin": "*"
+                    "Content-Type": "application/json"
                 },
                 body: JSON.stringify({
                     leadId: leadId,
@@ -532,8 +530,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
             return {
                 statusCode: 200,
                 headers: {
-                    "Content-Type": "application/json",
-                    "Access-Control-Allow-Origin": "*"
+                    "Content-Type": "application/json"
                 },
                 body: JSON.stringify({
                     leadId: leadId,
@@ -565,8 +562,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
             return {
                 statusCode: 200,
                 headers: {
-                    "Content-Type": "application/json",
-                    "Access-Control-Allow-Origin": "*"
+                    "Content-Type": "application/json"
                 },
                 body: JSON.stringify({
                     leadId: leadId,
@@ -612,8 +608,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
         return {
             statusCode: 200,
             headers: {
-                "Content-Type": "application/json",
-                "Access-Control-Allow-Origin": "*"
+                "Content-Type": "application/json"
             },
             body: JSON.stringify({
                 leadId: leadId,
@@ -663,8 +658,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
         return {
             statusCode: statusCode,
             headers: {
-                "Content-Type": "application/json",
-                "Access-Control-Allow-Origin": "*"
+                "Content-Type": "application/json"
             },
             body: JSON.stringify({
                 error: errorMessage,
