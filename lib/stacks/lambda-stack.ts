@@ -1,6 +1,6 @@
 import * as cdk from "aws-cdk-lib";
 import { Construct } from "constructs";
-import { Runtime } from "aws-cdk-lib/aws-lambda";
+import { Runtime, Tracing } from "aws-cdk-lib/aws-lambda";
 import { NodejsFunction } from "aws-cdk-lib/aws-lambda-nodejs";
 import {
     AuthorizationType,
@@ -55,7 +55,8 @@ export class LambdaStack extends cdk.Stack {
                     ENV_VARIABLE: props.stageName,
                     POSTGRES_URI: secret.secretValueFromJson("POSTGRES_URI").unsafeUnwrap(),
                     OPENAI_API_KEY: secret.secretValueFromJson("OPENAI_API_KEY").unsafeUnwrap()
-                }
+                },
+                tracing: Tracing.ACTIVE
             }
         );
 
