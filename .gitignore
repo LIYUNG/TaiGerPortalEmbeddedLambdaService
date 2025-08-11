@@ -9,3 +9,5 @@ dist
 cdk.out
 
 env.json
+.aws-sam/
+template.yml
