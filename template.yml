@@ -1,0 +1,58 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+
+Globals:
+    Function:
+        Timeout: 300
+        MemorySize: 512
+        Runtime: nodejs20.x
+
+Resources:
+    TaiGerLambdaFunction:
+        Type: AWS::Serverless::Function
+        Properties:
+            CodeUri: dist/src
+            Handler: lambda_handler.handler # This should match your exported function
+            Environment:
+                Variables:
+                    DB_HOST: !Ref DBHost
+                    DB_PORT: !Ref DBPort
+                    DB_NAME: !Ref DBName
+                    DB_USER: !Ref DBUser
+                    DB_PASSWORD: !Ref DBPassword
+                    DB_SSL: !Ref DBSSLEnabled
+                    OPENAI_API_KEY: !Ref OpenAIAPIKey
+            Events:
+                ApiEvents:
+                    Type: Api
+                    Properties:
+                        Path: /{proxy+}
+                        Method: any
+
+Parameters:
+    DBHost:
+        Type: String
+        Default: localhost
+    DBPort:
+        Type: String
+        Default: "5432"
+    DBName:
+        Type: String
+        Default: taiger_db
+    DBUser:
+        Type: String
+        Default: postgres
+    DBPassword:
+        Type: String
+        Default: password
+    DBSSLEnabled:
+        Type: String
+        Default: "false"
+    OpenAIAPIKey:
+        Type: String
+        NoEcho: true
+
+Outputs:
+    TaiGerApi:
+        Description: "API Gateway endpoint URL"
+        Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/"
