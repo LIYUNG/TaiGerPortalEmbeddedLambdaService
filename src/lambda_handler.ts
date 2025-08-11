@@ -1,8 +1,12 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
+import { Tracer } from "@aws-lambda-powertools/tracer";
 import { routes } from "./routes";
 import { ApiResponse } from "./apiResponse";
 
+const tracer = new Tracer({ serviceName: "TaiGerPortalEmbeddedLambdaService" });
+
 export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
+    tracer.getSegment();
     try {
         console.log("Processing API request:", JSON.stringify(event, null, 2));
         const path = event.path;

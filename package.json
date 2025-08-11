@@ -47,6 +47,7 @@
         "typescript": "~5.5.3"
     },
     "dependencies": {
+        "@aws-lambda-powertools/tracer": "^2.24.1",
         "aws-cdk-lib": "2.173.4",
         "constructs": "^10.0.0",
         "openai": "^5.10.2",
