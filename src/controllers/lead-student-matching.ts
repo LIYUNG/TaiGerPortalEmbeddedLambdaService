@@ -372,7 +372,7 @@ async function getAIEvaluation(prompt: string): Promise<AIEvaluationResult> {
         }
 
         const response = await openai.chat.completions.create({
-            model: "gpt-5-mini",
+            model: "gpt-4.1-mini",
             messages: [
                 {
                     role: "user",

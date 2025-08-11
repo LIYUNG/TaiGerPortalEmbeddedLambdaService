@@ -44,6 +44,7 @@ export class LambdaStack extends cdk.Stack {
                 entry: "src/lambda_handler.ts",
                 bundling: {
                     esbuildArgs: { "--bundle": true },
+                    nodeModules: ["@aws-lambda-powertools/tracer"],
                     target: "es2020",
                     platform: "node",
                     minify: true
