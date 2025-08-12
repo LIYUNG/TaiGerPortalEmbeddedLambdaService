@@ -31,7 +31,12 @@ interface MatchedStudent {
 }
 
 interface AIEvaluationResult {
-    top_matches: string[];
+    top_matches: MatchItem[];
+}
+
+interface MatchItem {
+    id: string;
+    reason: string;
 }
 
 interface DbConfig {
@@ -346,17 +351,29 @@ And a list of similar students with their information and unique IDs:
 
     promptText += `
 ### Task:
-- Evaluate which students are **meaningfully similar** to the new student
+- Identify **up to 5** students who are the most meaningfully similar to the new student
 - Prioritize strong matches based on:
-  - Same or closely related degree/program
-  - Similar GPA
-  - Overlap in subject interests or university applications
-- Return **only the most relevant matches**, **up to 5**
+  1. Same or closely related degree/program (highest priority)
+  2. Similar GPA
+  3. Overlap in subject interests or university applications
+- Only include students who are **strong matches**
 - If no good match is found, return an **empty array**
+- For each match, provide a **very short reason** (max 12 words)
 
 ### Output format:
 \`\`\`json
-{"top_matches":["647d1d2d6f888c637dd1c945", "63c6e55e2f294a90f28a9079", "647d1d2d6f4c8c999dd1c945"]}
+{
+  "top_matches": [
+    {
+      "id": "647d1d2d6f888c637dd1c945",
+      "reason": "Same CS degree, GPA 3.8, both applied to Oxford"
+    },
+    {
+      "id": "63c6e55e2f294a90f28a9079",
+      "reason": "Mechanical Eng, GPA match, shared robotics interest"
+    }
+  ]
+}
 \`\`\``;
 
     return promptText;
@@ -398,6 +415,16 @@ async function getAIEvaluation(prompt: string): Promise<AIEvaluationResult> {
             throw new OpenAIError("AI response does not contain valid top_matches array");
         }
 
+        // Validate each match item has id and reason
+        for (const match of parsed.top_matches) {
+            if (!match.id || typeof match.id !== "string") {
+                throw new OpenAIError("Match item missing valid id property");
+            }
+            if (!match.reason || typeof match.reason !== "string") {
+                throw new OpenAIError("Match item missing valid reason property");
+            }
+        }
+
         return parsed;
     } catch (error) {
         if (error instanceof ValidationError || error instanceof OpenAIError) {
@@ -415,32 +442,68 @@ async function getAIEvaluation(prompt: string): Promise<AIEvaluationResult> {
  */
 async function getMatchedStudents(
     client: InstanceType<typeof Client>,
-    topMatches: string[]
+    topMatches: MatchItem[]
 ): Promise<MatchedStudent[]> {
     try {
         if (!topMatches || topMatches.length === 0) {
             return [];
         }
 
-        // Validate that all topMatches are strings
-        if (!topMatches.every((id) => typeof id === "string" && id.trim().length > 0)) {
+        // Extract just the ids from the topMatches
+        const studentIds = topMatches.map((match) => match.id);
+
+        // Validate that all studentIds are strings
+        if (!studentIds.every((id) => typeof id === "string" && id.trim().length > 0)) {
             throw new ValidationError("Invalid student IDs in top matches");
         }
 
-        const placeholders = topMatches.map((_, index) => `$${index + 1}`).join(", ");
+        const placeholders = studentIds.map((_, index) => `$${index + 1}`).join(", ");
         const query = `
       SELECT mongo_id, full_name, text 
       FROM student_embeddings 
       WHERE mongo_id IN (${placeholders})
     `;
 
-        const result = await client.query(query, topMatches);
+        const result = await client.query(query, studentIds);
         return result.rows as MatchedStudent[];
     } catch (error) {
         if (error instanceof ValidationError) {
             throw error;
         }
         throw new DatabaseError("Failed to retrieve matched students", error as Error);
+    }
+}
+
+/**
+ * Insert matched students into lead_similar_users table
+ */
+async function insertMatchedStudents(
+    client: InstanceType<typeof Client>,
+    leadId: string,
+    topMatches: MatchItem[]
+): Promise<void> {
+    try {
+        if (!topMatches || topMatches.length === 0) {
+            return;
+        }
+
+        // Prepare values for bulk insert
+        const values = topMatches
+            .map((match) => `('${leadId}', '${match.id}', '${match.reason.replace(/'/g, "''")}')`)
+            .join(", ");
+
+        const query = `
+      INSERT INTO lead_similar_users (lead_id, mongo_id, reason)
+      VALUES ${values}
+    `;
+
+        await client.query(query);
+        logWithContext("INFO", "Successfully inserted matched students", {
+            leadId,
+            count: topMatches.length
+        });
+    } catch (error) {
+        throw new DatabaseError("Failed to insert matched students", error as Error);
     }
 }
 
@@ -589,7 +652,12 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
         const aiResult = await getAIEvaluation(prompt);
         aiTimer.end();
 
-        // Step 7: Get final matched students data
+        // Step 7: Insert matched students into database
+        const insertTimer = createTimer("Insert matched students");
+        await insertMatchedStudents(client, leadId, aiResult.top_matches);
+        insertTimer.end();
+
+        // Step 8: Get final matched students data for response
         const matchTimer = createTimer("Matched students data retrieval");
         const matchedStudents = await getMatchedStudents(client, aiResult.top_matches);
         matchTimer.end();
@@ -597,11 +665,20 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
         const processingTime = requestTimer.end();
         logMemoryUsage("Request end");
 
+        // Enhance each match with its reason from AI evaluation
+        const enhancedMatches = matchedStudents.map((student) => {
+            const matchItem = aiResult.top_matches.find((match) => match.id === student.mongo_id);
+            return {
+                ...student,
+                reason: matchItem ? matchItem.reason : ""
+            };
+        });
+
         logWithContext("INFO", "Request completed successfully", {
             leadId,
             totalSimilarFound: similarStudents.length,
             aiSelectedMatches: aiResult.top_matches?.length || 0,
-            finalMatches: matchedStudents.length,
+            finalMatches: enhancedMatches.length,
             processingTime: `${processingTime}ms`
         });
 
@@ -615,7 +692,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
                 inputProfile: inputText,
                 totalSimilarFound: similarStudents.length,
                 aiSelectedMatches: aiResult.top_matches?.length || 0,
-                matches: matchedStudents,
+                matches: enhancedMatches,
                 processingTime: processingTime
             })
         };
