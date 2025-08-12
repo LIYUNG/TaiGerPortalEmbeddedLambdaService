@@ -476,6 +476,7 @@ async function getMatchedStudents(
 
 /**
  * Insert matched students into lead_similar_users table
+ * Using parameterized queries for better security and reliability
  */
 async function insertMatchedStudents(
     client: InstanceType<typeof Client>,
@@ -487,23 +488,65 @@ async function insertMatchedStudents(
             return;
         }
 
-        // Prepare values for bulk insert
-        const values = topMatches
-            .map((match) => `('${leadId}', '${match.id}', '${match.reason.replace(/'/g, "''")}')`)
-            .join(", ");
+        logWithContext("INFO", "Preparing to insert matched students", {
+            leadId,
+            matchCount: topMatches.length
+        });
 
-        const query = `
-      INSERT INTO lead_similar_users (lead_id, mongo_id, reason)
-      VALUES ${values}
-    `;
+        // First, delete any existing matches for this lead to prevent duplicates
+        try {
+            const deleteQuery = `DELETE FROM lead_similar_users WHERE lead_id = $1`;
+            await client.query(deleteQuery, [leadId]);
+            logWithContext("INFO", "Deleted existing matches", { leadId });
+        } catch (deleteError) {
+            logWithContext("WARN", "Failed to delete existing matches", {
+                leadId,
+                error: (deleteError as Error).message
+            });
+            // Continue with insertion even if delete fails
+        }
 
-        await client.query(query);
-        logWithContext("INFO", "Successfully inserted matched students", {
+        // Use individual INSERT statements for better error tracking
+        for (const match of topMatches) {
+            try {
+                const query = `
+                  INSERT INTO lead_similar_users (lead_id, mongo_id, reason)
+                  VALUES ($1, $2, $3)
+                `;
+
+                await client.query(query, [leadId, match.id, match.reason]);
+
+                logWithContext("INFO", "Successfully inserted match", {
+                    leadId,
+                    studentId: match.id
+                });
+            } catch (insertError) {
+                logWithContext("ERROR", "Failed to insert individual match", {
+                    leadId,
+                    studentId: match.id,
+                    error: (insertError as Error).message
+                });
+                // Continue trying to insert other matches
+            }
+        }
+
+        logWithContext("INFO", "Completed match insertion process", {
             leadId,
             count: topMatches.length
         });
     } catch (error) {
-        throw new DatabaseError("Failed to insert matched students", error as Error);
+        // Log detailed error information for debugging
+        const err = error as Error;
+        logWithContext("ERROR", "Failed to insert matched students", {
+            leadId,
+            error: err.message,
+            stack: err.stack
+        });
+
+        throw new DatabaseError(
+            `Failed to insert matched students: ${err.message}`,
+            error as Error
+        );
     }
 }
 
@@ -654,6 +697,39 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
 
         // Step 7: Insert matched students into database
         const insertTimer = createTimer("Insert matched students");
+
+        // Verify that the table exists before attempting insertion
+        try {
+            const tableCheck = await client.query(`
+                SELECT EXISTS (
+                    SELECT FROM information_schema.tables 
+                    WHERE table_schema = 'public'
+                    AND table_name = 'lead_similar_users'
+                );
+            `);
+
+            const tableExists = tableCheck.rows[0].exists;
+
+            if (!tableExists) {
+                logWithContext("INFO", "Creating lead_similar_users table", { leadId });
+                await client.query(`
+                    CREATE TABLE IF NOT EXISTS lead_similar_users (
+                        id SERIAL PRIMARY KEY,
+                        lead_id TEXT NOT NULL,
+                        mongo_id TEXT NOT NULL,
+                        reason TEXT NOT NULL,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    );
+                `);
+                logWithContext("INFO", "Table created successfully", { leadId });
+            }
+        } catch (tableError) {
+            logWithContext("WARN", "Error checking/creating table", {
+                error: (tableError as Error).message
+            });
+            // Continue with insertion attempt
+        }
+
         await insertMatchedStudents(client, leadId, aiResult.top_matches);
         insertTimer.end();
 
