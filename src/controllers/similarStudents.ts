@@ -3,6 +3,9 @@ const { Client } = pkg;
 import OpenAI from "openai";
 import type { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
 
+const evalModel = "gpt-4.1-mini";
+const defaultNumberOfMatches = 10;
+
 // Type definitions
 interface LeadData {
     id: string;
@@ -31,7 +34,7 @@ interface MatchedStudent {
 }
 
 interface AIEvaluationResult {
-    top_matches: MatchItem[];
+    topMatches: MatchItem[];
 }
 
 interface MatchItem {
@@ -337,7 +340,11 @@ async function findSimilarStudents(
 /**
  * Prepare prompt for AI model to evaluate similarity
  */
-function preparePrompt(inputText: string, similarStudents: SimilarStudent[]): string {
+function preparePrompt(
+    inputText: string,
+    similarStudents: SimilarStudent[],
+    numberMatches: number = defaultNumberOfMatches
+): string {
     let promptText = `You are an AI assistant helping match student profiles based on similarity.
 Given a new student profile: 
 ${inputText}
@@ -351,7 +358,7 @@ And a list of similar students with their information and unique IDs:
 
     promptText += `
 ### Task:
-- Identify **up to 5** students who are the most meaningfully similar to the new student
+- Identify **up to ${numberMatches}** students who are the most meaningfully similar to the new student
 - Prioritize strong matches based on:
   1. Same or closely related degree/program (highest priority)
   2. Similar GPA
@@ -363,7 +370,7 @@ And a list of similar students with their information and unique IDs:
 ### Output format:
 \`\`\`json
 {
-  "top_matches": [
+  "topMatches": [
     {
       "id": "647d1d2d6f888c637dd1c945",
       "reason": "Same CS degree, GPA 3.8, both applied to Oxford"
@@ -389,7 +396,7 @@ async function getAIEvaluation(prompt: string): Promise<AIEvaluationResult> {
         }
 
         const response = await openai.chat.completions.create({
-            model: "gpt-4.1-mini",
+            model: evalModel,
             messages: [
                 {
                     role: "user",
@@ -411,12 +418,12 @@ async function getAIEvaluation(prompt: string): Promise<AIEvaluationResult> {
         const parsed = JSON.parse(content) as AIEvaluationResult;
 
         // Validate the response format
-        if (!parsed.top_matches || !Array.isArray(parsed.top_matches)) {
-            throw new OpenAIError("AI response does not contain valid top_matches array");
+        if (!parsed.topMatches || !Array.isArray(parsed.topMatches)) {
+            throw new OpenAIError("AI response does not contain valid topMatches array");
         }
 
         // Validate each match item has id and reason
-        for (const match of parsed.top_matches) {
+        for (const match of parsed.topMatches) {
             if (!match.id || typeof match.id !== "string") {
                 throw new OpenAIError("Match item missing valid id property");
             }
@@ -686,12 +693,12 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
         });
 
         // Step 5: Prepare prompt for AI evaluation
-        const promptTimer = createTimer("AI prompt preparation");
+        const promptTimer = createTimer("LLM prompt preparation");
         const prompt = preparePrompt(inputText, similarStudents);
         promptTimer.end();
 
-        // Step 6: Get AI evaluation
-        const aiTimer = createTimer("AI evaluation");
+        // Step 6: Get LLM evaluation
+        const aiTimer = createTimer("LLM evaluation");
         const aiResult = await getAIEvaluation(prompt);
         aiTimer.end();
 
@@ -730,12 +737,12 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
             // Continue with insertion attempt
         }
 
-        await insertMatchedStudents(client, leadId, aiResult.top_matches);
+        await insertMatchedStudents(client, leadId, aiResult.topMatches);
         insertTimer.end();
 
         // Step 8: Get final matched students data for response
         const matchTimer = createTimer("Matched students data retrieval");
-        const matchedStudents = await getMatchedStudents(client, aiResult.top_matches);
+        const matchedStudents = await getMatchedStudents(client, aiResult.topMatches);
         matchTimer.end();
 
         const processingTime = requestTimer.end();
@@ -743,7 +750,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
 
         // Enhance each match with its reason from AI evaluation
         const enhancedMatches = matchedStudents.map((student) => {
-            const matchItem = aiResult.top_matches.find((match) => match.id === student.mongo_id);
+            const matchItem = aiResult.topMatches.find((match) => match.id === student.mongo_id);
             return {
                 ...student,
                 reason: matchItem ? matchItem.reason : ""
@@ -753,7 +760,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
         logWithContext("INFO", "Request completed successfully", {
             leadId,
             totalSimilarFound: similarStudents.length,
-            aiSelectedMatches: aiResult.top_matches?.length || 0,
+            aiSelectedMatches: aiResult.topMatches?.length || 0,
             finalMatches: enhancedMatches.length,
             processingTime: `${processingTime}ms`
         });
@@ -767,7 +774,6 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
                 leadId: leadId,
                 inputProfile: inputText,
                 totalSimilarFound: similarStudents.length,
-                aiSelectedMatches: aiResult.top_matches?.length || 0,
                 matches: enhancedMatches,
                 processingTime: processingTime
             })
