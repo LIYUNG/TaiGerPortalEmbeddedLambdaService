@@ -1,6 +1,6 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
 import { ApiResponse } from "./apiResponse";
-import { handler as leadStudentMatchingHandler } from "./controllers/lead-student-matching";
+import { handler as similarStudents } from "./controllers/similarStudents";
 
 export const routes: Record<
     string,
@@ -19,5 +19,5 @@ export const routes: Record<
         return ApiResponse.ok({ time: new Date().toISOString() });
     },
 
-    "/lead-student-matching": leadStudentMatchingHandler
+    "/similar-students": similarStudents
 };
