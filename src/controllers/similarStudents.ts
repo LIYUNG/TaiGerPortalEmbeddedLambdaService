@@ -513,34 +513,10 @@ async function insertMatchedStudents(
             // Continue with insertion even if delete fails
         }
 
-        // Use individual INSERT statements for better error tracking
-        for (const match of topMatches) {
-            try {
-                const query = `
-                  INSERT INTO lead_similar_users (lead_id, mongo_id, reason)
-                  VALUES ($1, $2, $3)
-                `;
-
-                await client.query(query, [leadId, match.id, match.reason]);
-
-                logWithContext("INFO", "Successfully inserted match", {
-                    leadId,
-                    studentId: match.id
-                });
-            } catch (insertError) {
-                logWithContext("ERROR", "Failed to insert individual match", {
-                    leadId,
-                    studentId: match.id,
-                    error: (insertError as Error).message
-                });
-                // Continue trying to insert other matches
-            }
-        }
-
-        logWithContext("INFO", "Completed match insertion process", {
-            leadId,
-            count: topMatches.length
-        });
+        const values = topMatches.map((m, i) => `($1, $${i * 2 + 2}, $${i * 2 + 3})`).join(", ");
+        const params = [leadId, ...topMatches.flatMap((m) => [m.id, m.reason])];
+        const query = `INSERT INTO lead_similar_users (lead_id, mongo_id, reason) VALUES ${values} ON CONFLICT DO NOTHING`;
+        await client.query(query, params);
     } catch (error) {
         // Log detailed error information for debugging
         const err = error as Error;
@@ -704,38 +680,6 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
 
         // Step 7: Insert matched students into database
         const insertTimer = createTimer("Insert matched students");
-
-        // Verify that the table exists before attempting insertion
-        try {
-            const tableCheck = await client.query(`
-                SELECT EXISTS (
-                    SELECT FROM information_schema.tables 
-                    WHERE table_schema = 'public'
-                    AND table_name = 'lead_similar_users'
-                );
-            `);
-
-            const tableExists = tableCheck.rows[0].exists;
-
-            if (!tableExists) {
-                logWithContext("INFO", "Creating lead_similar_users table", { leadId });
-                await client.query(`
-                    CREATE TABLE IF NOT EXISTS lead_similar_users (
-                        id SERIAL PRIMARY KEY,
-                        lead_id TEXT NOT NULL,
-                        mongo_id TEXT NOT NULL,
-                        reason TEXT NOT NULL,
-                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                    );
-                `);
-                logWithContext("INFO", "Table created successfully", { leadId });
-            }
-        } catch (tableError) {
-            logWithContext("WARN", "Error checking/creating table", {
-                error: (tableError as Error).message
-            });
-            // Continue with insertion attempt
-        }
 
         await insertMatchedStudents(client, leadId, aiResult.topMatches);
         insertTimer.end();
