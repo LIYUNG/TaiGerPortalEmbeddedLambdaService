@@ -3,7 +3,7 @@ const { Client } = pkg;
 import OpenAI from "openai";
 import type { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
 
-const evalModel = "gpt-4.1-mini";
+const evalModel = "gpt-4o-mini";
 const defaultNumberOfMatches = 10;
 
 // Type definitions
