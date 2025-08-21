@@ -359,19 +359,19 @@ And a list of similar students with their information and unique IDs:
   3. Overlap in subject interests or university applications
 - Only include students who are **strong matches**
 - If no good match is found, return an **empty array**
-- For each match, provide a **very short reason** (max 12 words)
+- For each match, provide a **very concise reason** (max 12 words)
 
 ### Output format:
 \`\`\`json
 {
   "topMatches": [
     {
-      "id": "647d1d2d6f888c637dd1c945",
-      "reason": "Same CS degree, GPA 3.8, both applied to Oxford"
+      "mongoId": "647d1d2d6f888c637dd1c945",
+      "reason": "Same Uni, Similar GPA, both CS majors"
     },
     {
-      "id": "63c6e55e2f294a90f28a9079",
-      "reason": "Mechanical Eng, GPA match, shared robotics interest"
+      "mongoId": "63c6e55e2f294a90f28a9079",
+      "reason": "Both Mechanical Eng Majors, GPA match, shared robotics interest"
     }
   ]
 }
