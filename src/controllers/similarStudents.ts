@@ -362,29 +362,31 @@ Task:
 - Prioritize (in order): same/related degree or program; similar GPA; overlap in subject interests or target universities.
 - Be pragmatic: if several are reasonably strong, include them—do not be overly strict.
 - If fewer than ${numberMatches} strong matches exist, return all strong matches (possibly zero).
-- For each match, provide a concise reason (<= 12 words).
+- For each match, provide a concise reason in Traditional Chinese and English, combined into ONE string and separated by " | ".
+    Format exactly: "繁中: <reason in Traditional Chinese> | EN: <reason in English>".
+    Keep each language concise (e.g., EN ≤ 12 words; 繁中 ≤ 30 characters).
 - Output strict JSON only. No markdown, no comments.
 
 Output JSON schema:
 {
   "topMatches": [
-    { "mongoId": "<one of the provided IDs>", "reason": "<concise reason>" }
+        { "mongoId": "<one of the provided IDs>", "reason": "<短理由> | <short reason>" }
   ]
 }
 
 Example (10 items shown purely as format guidance):
 {
   "topMatches": [
-    { "mongoId": "id_1", "reason": "Same CS program, similar GPA, shared target schools" },
-    { "mongoId": "id_2", "reason": "Mechanical Eng, close GPA, robotics focus" },
-    { "mongoId": "id_3", "reason": "Data Science master, similar coursework and goals" },
-    { "mongoId": "id_4", "reason": "EE program overlap, matching GPA range" },
-    { "mongoId": "id_5", "reason": "Business analytics interest, near-identical GPA" },
-    { "mongoId": "id_6", "reason": "Same university, adjacent program, GPA aligned" },
-    { "mongoId": "id_7", "reason": "Similar math-heavy curriculum and targets" },
-    { "mongoId": "id_8", "reason": "Both CS with AI focus, GPA within 0.1" },
-    { "mongoId": "id_9", "reason": "Same degree level and specialization, close GPA" },
-    { "mongoId": "id_10", "reason": "Overlap in target schools and program direction" }
+        { "mongoId": "id_1", "reason": "同系所與相近GPA，目標學校重疊 | Same CS program, similar GPA, shared target schools" },
+        { "mongoId": "id_2", "reason": "繁中: 機械領域相近，GPA接近，聚焦機器人 | Mechanical Eng, close GPA, robotics focus" },
+        { "mongoId": "id_3", "reason": "數據科學碩士，課程與目標相符 | Data Science master, similar coursework and goals" },
+        { "mongoId": "id_4", "reason": "電機方向相符，GPA區間一致 | EE program overlap, matching GPA range" },
+        { "mongoId": "id_5", "reason": "商業分析興趣相同，GPA相近 | Business analytics interest, near-identical GPA" },
+        { "mongoId": "id_6", "reason": "同校相近科系，GPA對齊 | Same university, adjacent program, GPA aligned" },
+        { "mongoId": "id_7", "reason": "數學密集課程與目標相似 | Similar math-heavy curriculum and targets" },
+        { "mongoId": "id_8", "reason": "皆為資工且聚焦AI，GPA相近 | Both CS with AI focus, GPA within 0.1" },
+        { "mongoId": "id_9", "reason": "同學位層級與專業方向，GPA接近 | Same degree level and specialization, close GPA" },
+        { "mongoId": "id_10", "reason": "目標學校與申請方向重疊 | Overlap in target schools and program direction" }
   ]
 }`;
     return promptText;
