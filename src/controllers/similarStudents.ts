@@ -363,7 +363,7 @@ Task:
 - Be pragmatic: if several are reasonably strong, include them—do not be overly strict.
 - If fewer than ${numberMatches} strong matches exist, return all strong matches (possibly zero).
 - For each match, provide a concise reason in Traditional Chinese and English, combined into ONE string and separated by " | ".
-    Format exactly: "繁中: <reason in Traditional Chinese> | EN: <reason in English>".
+    Format exactly: "<reason in Traditional Chinese> | <reason in English>".
     Keep each language concise (e.g., EN ≤ 12 words; 繁中 ≤ 30 characters).
 - Output strict JSON only. No markdown, no comments.
 
