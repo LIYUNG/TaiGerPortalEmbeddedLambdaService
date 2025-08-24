@@ -86,6 +86,8 @@ const dbConfig: DbConfig = {
 // Debug function to log connection config (without password)
 function logConnectionConfig(): void {
     const safeConfig = { ...dbConfig };
+    // Redact the connection string to avoid leaking secrets
+    safeConfig.connectionString = dbConfig.connectionString ? "<redacted>" : undefined;
     delete (safeConfig as Record<string, unknown>).password;
     console.log("Database connection config:", safeConfig);
 }
@@ -315,10 +317,10 @@ async function findSimilarStudents(
         }
 
         const query = `
-      SELECT mongo_id, text, embedding <#> $1 AS distance
+      SELECT mongo_id, text, embedding <=> $1 AS distance
       FROM student_embeddings
       ORDER BY distance ASC
-      LIMIT 30
+      LIMIT 50
     `;
 
         const result = await client.query(query, [JSON.stringify(embedding)]);
@@ -339,44 +341,52 @@ function preparePrompt(
     similarStudents: SimilarStudent[],
     numberMatches: number = defaultNumberOfMatches
 ): string {
-    let promptText = `You are an AI assistant helping match student profiles based on similarity.
-Given a new student profile: 
+    let promptText = `You are an AI assistant matching student profiles.
+
+New student profile:
 ${inputText}
 
-And a list of similar students with their information and unique IDs:
+Candidate students (use only these IDs):
 `;
 
     similarStudents.forEach((student) => {
-        promptText += `ID: ${student.mongo_id} - ${student.text}\n`;
+        // Include distance to help the model gauge closeness
+        promptText += `ID: ${student.mongo_id} | distance: ${student.distance.toFixed(4)} | ${student.text}\n`;
     });
 
     promptText += `
-### Task:
-- Identify **up to ${numberMatches}** students who are the most meaningfully similar to the new student
-- Prioritize strong matches based on:
-  1. Same or closely related degree/program (highest priority)
-  2. Similar GPA
-  3. Overlap in subject interests or university applications
-- Only include students who are **strong matches**
-- If no good match is found, return an **empty array**
-- For each match, provide a **very concise reason** (max 12 words)
+Task:
+- Select up to ${numberMatches} strong matches.
+- If at least ${numberMatches} strong matches exist, you must return exactly ${numberMatches}.
+- Only use IDs from the provided list. Do not invent or alter IDs.
+- Prioritize (in order): same/related degree or program; similar GPA; overlap in subject interests or target universities.
+- Be pragmatic: if several are reasonably strong, include them—do not be overly strict.
+- If fewer than ${numberMatches} strong matches exist, return all strong matches (possibly zero).
+- For each match, provide a concise reason (<= 12 words).
+- Output strict JSON only. No markdown, no comments.
 
-### Output format:
-\`\`\`json
+Output JSON schema:
 {
   "topMatches": [
-    {
-      "mongoId": "647d1d2d6f888c637dd1c945",
-      "reason": "Same Uni, Similar GPA, both CS majors"
-    },
-    {
-      "mongoId": "63c6e55e2f294a90f28a9079",
-      "reason": "Both Mechanical Eng Majors, GPA match, shared robotics interest"
-    }
+    { "mongoId": "<one of the provided IDs>", "reason": "<concise reason>" }
   ]
 }
-\`\`\``;
 
+Example (10 items shown purely as format guidance):
+{
+  "topMatches": [
+    { "mongoId": "id_1", "reason": "Same CS program, similar GPA, shared target schools" },
+    { "mongoId": "id_2", "reason": "Mechanical Eng, close GPA, robotics focus" },
+    { "mongoId": "id_3", "reason": "Data Science master, similar coursework and goals" },
+    { "mongoId": "id_4", "reason": "EE program overlap, matching GPA range" },
+    { "mongoId": "id_5", "reason": "Business analytics interest, near-identical GPA" },
+    { "mongoId": "id_6", "reason": "Same university, adjacent program, GPA aligned" },
+    { "mongoId": "id_7", "reason": "Similar math-heavy curriculum and targets" },
+    { "mongoId": "id_8", "reason": "Both CS with AI focus, GPA within 0.1" },
+    { "mongoId": "id_9", "reason": "Same degree level and specialization, close GPA" },
+    { "mongoId": "id_10", "reason": "Overlap in target schools and program direction" }
+  ]
+}`;
     return promptText;
 }
 
@@ -392,6 +402,11 @@ async function getAIEvaluation(prompt: string): Promise<AIEvaluationResult> {
         const response = await openai.chat.completions.create({
             model: evalModel,
             messages: [
+                {
+                    role: "system",
+                    content:
+                        "You return strict JSON only. Follow the user instructions precisely. Never output markdown."
+                },
                 {
                     role: "user",
                     content: prompt
@@ -625,9 +640,18 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
             count: similarStudents.length
         });
 
+        // Parse optional limit (?limit=1..10)
+        const rawLimit = event.queryStringParameters?.limit;
+        const requestedLimit = (() => {
+            const n = typeof rawLimit === "string" ? parseInt(rawLimit, 10) : NaN;
+            if (Number.isNaN(n)) return defaultNumberOfMatches;
+            return Math.min(Math.max(n, 1), defaultNumberOfMatches);
+        })();
+        logWithContext("INFO", "Using requested limit", { requestedLimit });
+
         // Step 5: Prepare prompt for AI evaluation
         const promptTimer = createTimer("LLM prompt preparation");
-        const prompt = preparePrompt(inputText, similarStudents);
+        const prompt = preparePrompt(inputText, similarStudents, requestedLimit);
         promptTimer.end();
 
         // Step 6: Get LLM evaluation
