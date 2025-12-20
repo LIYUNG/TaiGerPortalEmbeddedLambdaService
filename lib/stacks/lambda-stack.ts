@@ -39,7 +39,7 @@ export class LambdaStack extends cdk.Stack {
             `${APPLICATION_NAME}-Function-${props.stageName}`,
             {
                 functionName: `${APPLICATION_NAME}-${props.stageName}`,
-                runtime: Runtime.NODEJS_20_X,
+                runtime: Runtime.NODEJS_22_X,
                 handler: "handler",
                 entry: "src/lambda_handler.ts",
                 bundling: {

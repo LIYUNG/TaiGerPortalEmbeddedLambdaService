@@ -22,7 +22,7 @@ test("Lambda Stack Created", () => {
 
     // Check if Lambda Function exists
     template.hasResourceProperties("AWS::Lambda::Function", {
-        Runtime: "nodejs20.x", // Adjust if needed
+        Runtime: "nodejs22.x", // Adjust if needed
         Handler: "index.handler" // Ensure this matches your Lambda handler
     });
 
