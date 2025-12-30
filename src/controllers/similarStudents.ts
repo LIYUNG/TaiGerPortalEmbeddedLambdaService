@@ -2,13 +2,16 @@ import pkg from "pg";
 const { Client } = pkg;
 import OpenAI from "openai";
 import type { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
+import { MongoClient, type MongoClientOptions, ObjectId } from "mongodb";
 
-const evalModel = "gpt-4o-mini";
+const evalModel = "gpt-5-mini";
 const defaultNumberOfMatches = 10;
 
 // Type definitions
 interface LeadData {
     id: string;
+    status: string;
+    user_id: string;
     bachelor_school?: string;
     bachelor_program_name?: string;
     bachelor_gpa?: string;
@@ -19,6 +22,31 @@ interface LeadData {
     intended_programs?: string;
     intended_direction?: string;
     [key: string]: string | number | boolean | null | undefined; // Allow additional properties
+}
+
+interface StudentData {
+    _id: string | ObjectId;
+    academic_background?: {
+        university?: {
+            attended_university?: string;
+            attended_university_program?: string;
+            My_GPA_Uni?: number | string;
+            attendedSecondDegreeUniversity?: string;
+            attendedSecondDegreeProgram?: string;
+            mySecondDegreeGPA?: number | string;
+        };
+
+        language?: {
+            english_isPassed?: "Yes" | "No" | string;
+            english_certificate?: string;
+            english_score?: string | number;
+        };
+    };
+    application_preference?: {
+        target_degree?: string;
+        targetApplicationSubjects?: string[];
+        target_application_field?: string;
+    };
 }
 
 interface SimilarStudent {
@@ -81,6 +109,14 @@ const dbConfig: DbConfig = {
     // Add connection timeout and other options
     connectionTimeoutMillis: 10000,
     idleTimeoutMillis: 30000
+};
+
+const mongodbConfig: { uri: string; tenant: string; options: MongoClientOptions } = {
+    uri: process.env.MONGODB_URI || "",
+    tenant: process.env.MONGODB_TENANT || "TaiGer_Prod",
+    options: {
+        serverSelectionTimeoutMS: 10000 // 10 seconds
+    }
 };
 
 // Debug function to log connection config (without password)
@@ -158,35 +194,6 @@ function validateLeadId(leadId: unknown): string | null {
 }
 
 /**
- * Validate lead data before processing
- */
-function validateLeadData(leadData: LeadData): boolean {
-    if (!leadData || typeof leadData !== "object") {
-        return false;
-    }
-
-    // Check if at least one meaningful field exists
-    const meaningfulFields: (keyof LeadData)[] = [
-        "bachelor_school",
-        "bachelor_program_name",
-        "bachelor_gpa",
-        "master_school",
-        "master_program_name",
-        "master_gpa",
-        "intended_program_level",
-        "intended_programs",
-        "intended_direction"
-    ];
-
-    return meaningfulFields.some(
-        (field) =>
-            leadData[field] &&
-            leadData[field] !== "-" &&
-            leadData[field]!.toString().trim().length > 0
-    );
-}
-
-/**
  * Custom error classes for better error handling
  */
 class ValidationError extends Error {
@@ -216,6 +223,42 @@ class OpenAIError extends Error {
     }
 }
 
+let cachedMongoClient: MongoClient | undefined;
+let cachedMongoClientPromise: Promise<MongoClient> | undefined;
+
+async function getMongoClient(): Promise<MongoClient> {
+    if (cachedMongoClient) return cachedMongoClient;
+    if (cachedMongoClientPromise) return cachedMongoClientPromise;
+
+    if (!mongodbConfig.uri) {
+        throw new ValidationError("MONGODB_URI is required to read migrated student profiles");
+    }
+
+    cachedMongoClientPromise = (async () => {
+        try {
+            logWithContext("INFO", "Connecting to MongoDB", {
+                tenant: mongodbConfig.tenant
+            });
+
+            console.log(mongodbConfig.uri, mongodbConfig.options);
+            const client = new MongoClient(mongodbConfig.uri, mongodbConfig.options);
+            await client.connect();
+            cachedMongoClient = client;
+
+            logWithContext("INFO", "MongoDB connected successfully", {
+                tenant: mongodbConfig.tenant
+            });
+
+            return client;
+        } catch (error) {
+            cachedMongoClientPromise = undefined;
+            throw new DatabaseError("Failed to connect to MongoDB", error as Error);
+        }
+    })();
+
+    return cachedMongoClientPromise;
+}
+
 /**
  * Helper function to safely format lines for text preparation
  */
@@ -233,7 +276,7 @@ function joinLines(...lines: string[]): string {
 /**
  * Prepare text for embedding from lead data
  */
-function prepareTextForEmbedding(leadData: LeadData): string {
+function prepLeadForEmbedding(leadData: LeadData): string {
     return joinLines(
         // Academic background
         safeLine("Bachelor School", leadData.bachelor_school),
@@ -248,6 +291,33 @@ function prepareTextForEmbedding(leadData: LeadData): string {
         safeLine("Intended Program Level", leadData.intended_program_level),
         safeLine("Intended Programs", leadData.intended_programs),
         safeLine("Intended Direction", leadData.intended_direction)
+    );
+}
+
+/**
+ * Prepare text for embedding from student data
+ */
+function prepStudentForEmbedding(studentData: StudentData): string {
+    const university = studentData.academic_background?.university || {};
+    // const language = studentData.academic_background?.language || {};
+    const applicationPreference = studentData.application_preference || {};
+
+    return joinLines(
+        // Academic background
+        safeLine("Bachelor School", university?.attended_university),
+        safeLine("Bachelor Program", university?.attended_university_program),
+        safeLine("Bachelor GPA", university?.My_GPA_Uni),
+
+        safeLine("Master School", university?.attendedSecondDegreeUniversity),
+        safeLine("Master Program", university?.attendedSecondDegreeProgram),
+        safeLine("Master GPA", university?.mySecondDegreeGPA),
+        // Application plan
+        safeLine("Intended Program Level", applicationPreference.target_degree),
+        safeLine(
+            "Intended Programs",
+            (applicationPreference.targetApplicationSubjects || []).join(", ")
+        ),
+        safeLine("Intended Direction", applicationPreference.target_application_field)
     );
 }
 
@@ -274,6 +344,33 @@ async function getLeadData(client: InstanceType<typeof Client>, leadId: string):
             throw error;
         }
         throw new DatabaseError("Failed to retrieve lead data", error as Error);
+    }
+}
+
+/**
+ * Get Student data from MongoDB
+ */
+async function getStudentData(
+    mongoClient: MongoClient,
+    studentId: string
+): Promise<StudentData | null> {
+    try {
+        const database = mongoClient.db(mongodbConfig.tenant);
+        const collection = database.collection<StudentData>("users");
+
+        const id: string | ObjectId = ObjectId.isValid(studentId)
+            ? new ObjectId(studentId)
+            : studentId;
+
+        const student = await collection.findOne({ _id: id });
+
+        return student as StudentData | null;
+    } catch (error) {
+        logWithContext("ERROR", "Failed to retrieve student data from MongoDB", {
+            studentId,
+            error: (error as Error).message
+        });
+        return null;
     }
 }
 
@@ -567,25 +664,37 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
         leadTimer.end();
 
         // Validate lead data
-        if (!validateLeadData(leadData)) {
-            logWithContext("WARN", "No meaningful lead data found", { leadId });
-            return {
-                statusCode: 200,
-                headers: {
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({
-                    leadId: leadId,
-                    message: "No meaningful data found for lead",
-                    matches: [],
-                    processingTime: requestTimer.end()
-                })
-            };
+        // if (!validateLeadData(leadData)) {
+        //     logWithContext("WARN", "No meaningful lead data found", { leadId });
+        //     return {
+        //         statusCode: 200,
+        //         headers: {
+        //             "Content-Type": "application/json"
+        //         },
+        //         body: JSON.stringify({
+        //             leadId: leadId,
+        //             message: "No meaningful data found for lead",
+        //             matches: [],
+        //             processingTime: requestTimer.end()
+        //         })
+        //     };
+        // }
+
+        let studentData: StudentData | null = null;
+        if (leadData.status === "migrated") {
+            const userId = leadData.user_id;
+            const mongoClient = await getMongoClient();
+            studentData = await getStudentData(mongoClient, userId);
         }
 
         // Step 2: Prepare text for embedding
+        let inputText: string | undefined;
         const textTimer = createTimer("Text preparation");
-        const inputText = prepareTextForEmbedding(leadData);
+        if (studentData) {
+            inputText = prepStudentForEmbedding(studentData);
+        } else {
+            inputText = prepLeadForEmbedding(leadData);
+        }
         textTimer.end();
 
         if (!inputText.trim()) {
