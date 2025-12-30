@@ -55,6 +55,7 @@ export class LambdaStack extends cdk.Stack {
                 environment: {
                     ENV_VARIABLE: props.stageName,
                     POSTGRES_URI: secret.secretValueFromJson("POSTGRES_URI").unsafeUnwrap(),
+                    MONGODB_URI: secret.secretValueFromJson("MONGODB_URI").unsafeUnwrap(),
                     OPENAI_API_KEY: secret.secretValueFromJson("OPENAI_API_KEY").unsafeUnwrap()
                 },
                 tracing: Tracing.ACTIVE
