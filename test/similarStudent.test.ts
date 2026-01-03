@@ -34,7 +34,7 @@ async function main() {
         isBase64Encoded: false,
         path: "/test/similar-students",
         pathParameters: null,
-        queryStringParameters: { leadId: "iLyQHGSZjztrJ4ipxTocj", limit: "10" },
+        queryStringParameters: { leadId: "EfqW2r89ZSdDj8H-RHS0v", limit: "10" },
         multiValueQueryStringParameters: null,
         stageVariables: null,
         requestContext,

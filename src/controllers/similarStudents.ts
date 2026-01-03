@@ -4,8 +4,11 @@ import OpenAI from "openai";
 import type { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
 import { MongoClient, type MongoClientOptions, ObjectId } from "mongodb";
 
-const evalModel = "gpt-5-mini";
+// faster: gpt-4o-mini, gpt-4.1-mini
+// slower: gpt-5-mini, gpt-5-nano -> reasoning?
+const evalModel = "gpt-4o-mini";
 const defaultNumberOfMatches = 10;
+const k = 50; // number of similar students to retrieve from DB
 
 // Type definitions
 interface LeadData {
@@ -417,7 +420,7 @@ async function findSimilarStudents(
       SELECT mongo_id, text, embedding <=> $1 AS distance
       FROM student_embeddings
       ORDER BY distance ASC
-      LIMIT 50
+      LIMIT ${k}
     `;
 
         const result = await client.query(query, [JSON.stringify(embedding)]);
